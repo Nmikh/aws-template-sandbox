@@ -1,0 +1,63 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: EC2 instance scalling ssh template
+
+Parameters:
+  InstanceType:
+    Description: WebServer EC2 instance type
+    Type: String
+    Default: t2.micro
+  AmiId:
+    Description: AMI identifier for the EC2 instance
+    Type: String
+    Default: ami-013a129d325529d4d
+
+Resources:
+  SSHSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Enable SSH access via port 22
+      SecurityGroupIngress:
+        - CidrIp: 0.0.0.0/0
+          FromPort: 22
+          IpProtocol: tcp
+          ToPort: 22
+  WebSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Enable HTTP access via user defined port
+      SecurityGroupIngress:
+        - CidrIp: 0.0.0.0/0
+          FromPort: 80
+          IpProtocol: tcp
+          ToPort: 80
+
+  ASGLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateName: !Sub ${AWS::StackName}-launch-template
+      LaunchTemplateData:
+        ImageId: !Ref AmiId
+        InstanceType: !Ref InstanceType
+        KeyName: ec2-test-us-west-2
+        SecurityGroups:
+          - !Ref SSHSecurityGroup
+          - !Ref WebSecurityGroup
+        UserData:
+          Fn::Base64: |
+            sudo yum update -y
+            sudo yum install -y java-1.8.0-openjdk
+
+  ASG:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      MinSize: "2"
+      MaxSize: "3"
+      DesiredCapacity: "2"
+      AvailabilityZones:
+        - us-west-2a
+      LaunchTemplate:
+        LaunchTemplateId: !Ref ASGLaunchTemplate
+        Version: !GetAtt ASGLaunchTemplate.LatestVersionNumber
+
+#aws cloudformation create-stack --stack-name ec2-stack --template-body file://cloudformation-ec2-scaling-ssh.yaml --parameters ParameterKey=InstanceType,ParameterValue=t2.micro ParameterKey=AmiId,ParameterValue=ami-013a129d325529d4d
+#aws cloudformation delete-stack --stack-name ec2-stack
